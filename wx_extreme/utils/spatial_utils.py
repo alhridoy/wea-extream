@@ -77,6 +77,38 @@ def get_dy(
     return abs(dy)
 
 
+def haversine_distance(
+    lon1: float,
+    lat1: float,
+    lon2: float,
+    lat2: float,
+) -> float:
+    """Calculate haversine distance between two points.
+    
+    Args:
+        lon1: Longitude of first point (degrees)
+        lat1: Latitude of first point (degrees)
+        lon2: Longitude of second point (degrees)
+        lat2: Latitude of second point (degrees)
+        
+    Returns:
+        Distance in kilometers
+    """
+    R = 6371.0  # Earth radius in km
+    
+    # Convert to radians
+    lat1, lon1 = np.deg2rad(lat1), np.deg2rad(lon1)
+    lat2, lon2 = np.deg2rad(lat2), np.deg2rad(lon2)
+    
+    # Haversine formula
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = np.sin(dlat/2)**2 + np.cos(lat1) * np.cos(lat2) * np.sin(dlon/2)**2
+    c = 2 * np.arcsin(np.sqrt(a))
+    
+    return R * c
+
+
 def great_circle_distance(
     lat1: float,
     lon1: float,
@@ -100,15 +132,12 @@ def great_circle_distance(
     lat1, lon1 = np.deg2rad(lat1), np.deg2rad(lon1)
     lat2, lon2 = np.deg2rad(lat2), np.deg2rad(lon2)
     
-    # Haversine formula
-    dlat = lat2 - lat1
+    # Great circle formula
     dlon = lon2 - lon1
+    dlat = lat2 - lat1
     
-    a = (
-        np.sin(dlat/2)**2 +
-        np.cos(lat1) * np.cos(lat2) * np.sin(dlon/2)**2
-    )
-    c = 2 * np.arctan2(np.sqrt(a), np.sqrt(1-a))
+    a = (np.sin(dlat/2))**2 + np.cos(lat1) * np.cos(lat2) * (np.sin(dlon/2))**2
+    c = 2 * np.arcsin(np.sqrt(a))
     
     return R * c
 
@@ -132,11 +161,11 @@ def calculate_area(
     lat = np.deg2rad(latitude)
     lon = np.deg2rad(longitude)
     
-    # Calculate cell boundaries
-    dlat = lat[1] - lat[0]
-    dlon = lon[1] - lon[0]
+    # Calculate cell dimensions
+    dx = R * np.cos(lat) * (lon[1] - lon[0])
+    dy = R * (lat[1] - lat[0])
     
-    # Calculate areas using spherical geometry
-    areas = R**2 * np.cos(lat) * dlat * dlon
+    # Calculate area
+    area = abs(dx * dy)
     
-    return abs(areas)
+    return area

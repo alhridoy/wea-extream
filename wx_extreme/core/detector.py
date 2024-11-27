@@ -5,6 +5,7 @@ from typing import Dict, Optional, Union, List, Tuple
 import numpy as np
 import xarray as xr
 from scipy import ndimage
+import pandas as pd
 
 from wx_extreme.utils import time_utils, spatial_utils
 
@@ -102,8 +103,12 @@ class ExtremeEventDetector:
             else:
                 events[f"{var}_extreme"] = dataset[var] > threshold
             
-            # Apply spatial coherence check
-            if event_def.spatial_scale > 0:
+            # Apply spatial coherence check if we have spatial dimensions
+            if (
+                event_def.spatial_scale > 0 and
+                hasattr(dataset, 'latitude') and
+                hasattr(dataset, 'longitude')
+            ):
                 events[f"{var}_extreme"] = self._apply_spatial_filter(
                     events[f"{var}_extreme"],
                     event_def.spatial_scale,
@@ -113,7 +118,7 @@ class ExtremeEventDetector:
             
             # Check temporal persistence
             if event_def.window:
-                window_size = time_utils.parse_time_window(event_def.window)
+                window_size = pd.Timedelta(event_def.window)
                 events[f"{var}_extreme"] = self._check_persistence(
                     events[f"{var}_extreme"], window_size
                 )
@@ -149,48 +154,64 @@ class ExtremeEventDetector:
             Filtered event mask
         """
         # Convert spatial scale to grid points
-        dx, dy = spatial_utils.get_grid_spacing(latitude, longitude)
-        kernel_size = int(min_scale / min(dx, dy))
-        
-        # Apply morphological operations to enforce spatial scale
-        struct = ndimage.generate_binary_structure(2, 2)
-        struct = ndimage.iterate_structure(struct, kernel_size)
-        
-        filtered = xr.apply_ufunc(
-            lambda x: ndimage.binary_opening(x, structure=struct),
-            event_mask,
-            input_core_dims=[["latitude", "longitude"]],
-            output_core_dims=[["latitude", "longitude"]],
-            vectorize=True,
+        dx = spatial_utils.haversine_distance(
+            longitude[0, 0],
+            latitude[0, 0],
+            longitude[0, 1],
+            latitude[0, 0],
+        )
+        dy = spatial_utils.haversine_distance(
+            longitude[0, 0],
+            latitude[0, 0],
+            longitude[0, 0],
+            latitude[1, 0],
         )
         
-        return filtered
+        min_points_x = int(np.ceil(min_scale / dx))
+        min_points_y = int(np.ceil(min_scale / dy))
+        
+        # Create structuring element for morphological operations
+        structure = np.ones((min_points_y, min_points_x))
+        
+        # Apply opening operation to remove small features
+        filtered = ndimage.binary_opening(event_mask.values, structure=structure)
+        
+        return xr.DataArray(
+            filtered,
+            dims=event_mask.dims,
+            coords=event_mask.coords,
+        )
 
     def _check_persistence(
         self,
         event_mask: xr.DataArray,
-        window_size: int,
+        window_size: pd.Timedelta,
     ) -> xr.DataArray:
         """Check temporal persistence of events.
         
         Args:
             event_mask: Boolean mask of events
-            window_size: Size of rolling window in time steps
+            window_size: Minimum duration for events
             
         Returns:
-            Mask of persistent events
+            Filtered event mask
         """
-        # Count number of event occurrences in rolling window
-        counts = event_mask.rolling(time=window_size).sum()
+        # Get time resolution
+        time_diff = event_mask.time[1].values - event_mask.time[0].values
+        time_res = pd.Timedelta(time_diff)
+        window_steps = int(window_size / time_res)
         
-        # Event must occur in at least 75% of the window
-        threshold = 0.75 * window_size
-        persistent = counts >= threshold
+        # Create structuring element for time dimension
+        structure = np.ones(window_steps)
         
-        # Align with original time axis
-        persistent = persistent.shift(time=-(window_size // 2))
+        # Apply opening operation along time axis
+        filtered = ndimage.binary_opening(event_mask.values, structure=structure)
         
-        return persistent
+        return xr.DataArray(
+            filtered,
+            dims=event_mask.dims,
+            coords=event_mask.coords,
+        )
 
     def get_event_statistics(
         self,
