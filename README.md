@@ -1,132 +1,159 @@
-# WX-Extreme: Advanced Weather Prediction Model Evaluation
+# WX-Extreme
 
-[![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/release/python-380/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+A Python package for detecting and evaluating extreme weather events in climate data.
 
-WX-Extreme is a comprehensive Python package for evaluating machine learning weather prediction models, with a special focus on extreme events and physical consistency. It provides tools for detecting extreme weather events, validating physical relationships, and assessing forecast quality from an end-user perspective.
+## WeatherBench2 Limitations and WX-Extreme Solutions
 
-## 🌟 Key Features
+WX-Extreme extends WeatherBench2's capabilities by addressing several key limitations:
 
-- **Extreme Event Detection**
-  - Percentile-based thresholds
-  - Return period analysis
-  - Peaks-over-threshold method
-  - Compound event detection
+### 1. Extreme Event Focus
+WeatherBench2:
+- Focuses on general forecast skill (RMSE, ACC)
+- Lacks specific extreme event detection
+- No duration or spatial coherence analysis
 
-- **Physical Consistency Validation**
+WX-Extreme Solutions:
+- Flexible threshold definitions (percentile/absolute)
+- Minimum duration constraints
+- Spatial coherence requirements
+- Event-specific evaluation metrics
+
+### 2. Physical Consistency
+WeatherBench2:
+- Limited physical consistency checks
+- No grid-aware validations
+- Basic thermodynamic relationships
+
+WX-Extreme Solutions:
+- Comprehensive physical validation suite
+- Grid-aware spatial metrics
+- Advanced thermodynamic checks:
+  - Potential temperature relationships
   - Hydrostatic balance
-  - Geostrophic wind relationships
-  - Thermal wind balance
-  - Conservation laws
+  - Pattern prediction scoring
 
-- **Statistical Analysis**
-  - Extreme value distributions
-  - Return period calculations
+### 3. Spatial Analysis
+WeatherBench2:
+- Global metrics only
+- No regional analysis capabilities
+- Fixed grid assumptions
+
+WX-Extreme Solutions:
+- Grid spacing calculations
+- Area-weighted metrics
+- Regional event detection
+- Flexible grid handling
+- Spatial coherence validation
+
+### 4. Statistical Robustness
+WeatherBench2:
+- Basic statistical measures
+- Limited extreme value analysis
+- No event duration statistics
+
+WX-Extreme Solutions:
+- Advanced statistical tools:
   - Exceedance probabilities
-  - Block maxima analysis
+  - Percentile-based thresholds
+  - Duration statistics
+  - Event frequency analysis
+  - Pattern correlation metrics
 
-- **Spatial Analysis**
-  - Grid metrics calculations
-  - Distance computations
-  - Area calculations
-  - Coordinate transformations
+### 5. Visualization
+WeatherBench2:
+- Basic plotting capabilities
+- Limited comparison tools
+- No event-specific visualization
 
-- **Visualization**
-  - Publication-quality plots
-  - Map visualizations
-  - Return period curves
-  - Wind field plotting
+WX-Extreme Solutions:
+- Specialized visualization suite:
+  - Event heatmaps
+  - Model comparison plots
+  - Bias assessment visualizations
+  - Spatial pattern analysis plots
 
-## 🚀 Installation
+## Installation
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-username/wx-extreme.git
-cd wx-extreme
-
-# Install dependencies
 pip install -r requirements.txt
-
-# Install package in development mode
-pip install -e .
 ```
 
-## 📖 Quick Start
+## Dataset Requirements
+
+The package works with weather/climate data that meets these specifications:
+
+### Required Data Format
+- **File Format**: NetCDF (.nc) or any xarray-compatible format
+- **Dimensions**: 
+  - time
+  - latitude (degrees North, -90 to 90)
+  - longitude (degrees East, -180 to 180)
+- **Variables**:
+  - Temperature (°C or K)
+  - Pressure levels (Pa) - for physical consistency evaluation
+
+### Recommended Data Sources
+1. **ERA5 Reanalysis**
+   - Resolution: 0.25° x 0.25°
+   - Variables: 2m temperature, surface pressure
+   - [Download from CDS](https://cds.climate.copernicus.eu/)
+
+2. **CMIP6 Model Outputs**
+   - Variables: tas (surface temperature), ps (surface pressure)
+   - [Download from ESGF](https://esgf-node.llnl.gov/projects/cmip6/)
+
+3. **Weather Model Forecasts**
+   - GFS (Global Forecast System)
+   - ECMWF forecasts
+
+## Quick Start
 
 ```python
+from wx_extreme.core.detector import ExtremeEventDetector
 import xarray as xr
-from wx_extreme.utils import spatial_utils, met_utils, stat_utils, plot_utils
 
-# Load your weather data
-ds = xr.open_dataset('weather_data.nc')
+# Load your data
+data = xr.open_dataset('temperature.nc')
+temperature = data['t2m']
 
-# Calculate grid metrics
-dx, dy = spatial_utils.get_grid_spacing(ds.latitude, ds.longitude)
+# Initialize detector
+detector = ExtremeEventDetector(
+    threshold_method="percentile",
+    threshold_value=95,
+    min_duration=3
+)
 
-# Analyze extremes
-temp_95 = stat_utils.calculate_percentile(ds.temperature, q=95, dim='time')
-exceed_prob = stat_utils.exceedance_probability(ds.temperature, threshold=25)
-
-# Check physical consistency
-theta = met_utils.potential_temperature(ds.temperature, ds.pressure)
-
-# Create visualization
-plot_utils.plot_field(temp_95, colorbar_label='Temperature (°C)')
+# Detect events
+events = detector.detect_events(temperature)
 ```
 
-## 📚 Documentation
+See `examples/model_evaluation.py` for a complete tutorial.
 
-For detailed documentation and examples, check out our [examples](examples/) directory:
+## Features
 
-- [Basic Usage](examples/basic_usage.ipynb): Introduction to core functionality
-- [Extreme Event Analysis](examples/extreme_events.ipynb): Detailed extreme event detection
-- [Physical Validation](examples/physics.ipynb): Physical consistency checks
-- [Visualization Guide](examples/visualization.ipynb): Advanced plotting examples
+1. **Event Detection**
+   - Percentile-based thresholds
+   - Absolute value thresholds
+   - Spatial coherence requirements
+   - Minimum duration constraints
 
-## 🧪 Testing
+2. **Event Evaluation**
+   - Frequency analysis
+   - Intensity metrics
+   - Duration statistics
+   - Spatial extent
 
-Run the test suite:
+3. **Model Evaluation**
+   - Pattern prediction scoring
+   - Physical consistency checks
+   - Bias assessment
+   - Spatial correlation analysis
 
-```bash
-pytest tests/
-```
+## Dependencies
 
-## 🤝 Contributing
-
-We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
-
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- [WeatherBench2](https://github.com/google-research/weatherbench2) for inspiration and benchmarking
-- [xarray](https://xarray.dev/) for excellent data structures
-- [cartopy](https://scitools.org.uk/cartopy/docs/latest/) for map visualizations
-
-## 📧 Contact
-
-For questions and feedback:
-- Create an issue in the repository
-- Email: your.email@example.com
-- Twitter: [@wx_extreme](https://twitter.com/wx_extreme)
-
-## 📝 Citation
-
-If you use WX-Extreme in your research, please cite:
-
-```bibtex
-@software{wx_extreme2023,
-  author = {Your Name},
-  title = {WX-Extreme: Advanced Weather Prediction Model Evaluation},
-  year = {2023},
-  publisher = {GitHub},
-  url = {https://github.com/your-username/wx-extreme}
-}
+- numpy
+- xarray
+- pandas
+- matplotlib
+- scipy
+- netCDF4

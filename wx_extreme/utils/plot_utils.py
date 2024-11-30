@@ -5,7 +5,9 @@ import xarray as xr
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
-from typing import Optional, Union, Tuple, List
+import seaborn as sns
+from typing import Optional, Union, Tuple, List, Dict
+import warnings
 
 
 def setup_map(
@@ -282,4 +284,110 @@ def plot_return_period(
     if title:
         ax.set_title(title)
         
+    return ax
+
+
+def plot_model_comparison_heatmap(
+    model_data: xr.DataArray,
+    reference_data: xr.DataArray,
+    metric: str = 'bias',
+    cmap: str = 'RdYlBu_r',
+    vmin: Optional[float] = None,
+    vmax: Optional[float] = None,
+    title: Optional[str] = None,
+    ax: Optional[plt.Axes] = None
+) -> plt.Axes:
+    """Plot heatmap comparing model predictions to reference data."""
+    if ax is None:
+        ax = plt.gca()
+    
+    # Check for required dimensions
+    if 'time' not in model_data.dims or 'time' not in reference_data.dims:
+        warnings.warn("Data missing time dimension")
+        return ax
+    
+    # Calculate metric
+    if metric == 'bias':
+        diff = model_data - reference_data
+        data = diff.mean(dim='time')
+        label = 'Mean Bias'
+    elif metric == 'rmse':
+        diff = (model_data - reference_data)**2
+        data = np.sqrt(diff.mean(dim='time'))
+        label = 'RMSE'
+    else:
+        # Calculate correlation at each point
+        data = xr.corr(model_data, reference_data, dim='time')
+        label = 'Correlation'
+    
+    # Create plot
+    try:
+        im = ax.pcolormesh(
+            data.longitude,
+            data.latitude,
+            data,
+            cmap=cmap,
+            vmin=vmin,
+            vmax=vmax
+        )
+        plt.colorbar(im, ax=ax, label=label)
+    except (AttributeError, ValueError) as e:
+        warnings.warn(f"Error creating plot: {str(e)}")
+        return ax
+    
+    if title:
+        ax.set_title(title)
+    ax.set_xlabel('Longitude')
+    ax.set_ylabel('Latitude')
+    
+    return ax
+
+
+def plot_extreme_event_heatmap(
+    events: xr.DataArray,
+    temperature: xr.DataArray,
+    time_slice: Optional[str] = None,
+    ax: Optional[plt.Axes] = None
+) -> plt.Axes:
+    """Plot heatmap of extreme temperature events."""
+    if ax is None:
+        ax = plt.gca()
+    
+    # Select time slice if specified
+    if time_slice:
+        events = events.sel(time=time_slice)
+        temperature = temperature.sel(time=time_slice)
+    else:
+        # Use first time step if no slice specified
+        events = events.isel(time=0)
+        temperature = temperature.isel(time=0)
+    
+    # Plot temperature heatmap
+    try:
+        temp_plot = ax.pcolormesh(
+            temperature.longitude,
+            temperature.latitude,
+            temperature,
+            cmap='RdYlBu_r'
+        )
+        plt.colorbar(temp_plot, ax=ax, label='Temperature (°C)')
+        
+        # Overlay event contours if any events exist
+        if events.any():
+            ax.contour(
+                events.longitude,
+                events.latitude,
+                events,
+                colors='k',
+                linewidths=2,
+                levels=[0.5]
+            )
+    except (AttributeError, ValueError) as e:
+        warnings.warn(f"Error creating plot: {str(e)}")
+        return ax
+    
+    ax.set_title('Temperature with Extreme Events')
+    ax.set_xlabel('Longitude')
+    ax.set_ylabel('Latitude')
+    
     return ax

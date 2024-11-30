@@ -2,12 +2,13 @@
 
 import numpy as np
 import xarray as xr
+from typing import Tuple
 
 
 def get_grid_spacing(
-    latitude: xr.DataArray,
-    longitude: xr.DataArray,
-) -> tuple[float, float]:
+    latitude: np.ndarray,
+    longitude: np.ndarray,
+) -> Tuple[float, float]:
     """Calculate grid spacing in kilometers.
     
     Args:
@@ -20,12 +21,13 @@ def get_grid_spacing(
     R = 6371.0  # Earth radius in km
     
     # Convert to radians
-    lat = np.deg2rad(latitude)
-    lon = np.deg2rad(longitude)
+    lat = np.deg2rad(latitude.mean())  # Use mean latitude for dx calculation
+    dlat = np.deg2rad(latitude[1] - latitude[0])
+    dlon = np.deg2rad(longitude[1] - longitude[0])
     
     # Calculate spacing
-    dx = R * np.cos(lat) * (lon[1] - lon[0])
-    dy = R * (lat[1] - lat[0])
+    dx = R * np.cos(lat) * dlon
+    dy = R * dlat
     
     return abs(float(dx)), abs(float(dy))
 
@@ -146,7 +148,7 @@ def calculate_area(
     latitude: xr.DataArray,
     longitude: xr.DataArray,
 ) -> xr.DataArray:
-    """Calculate grid cell areas.
+    """Calculate grid cell areas in square kilometers.
     
     Args:
         latitude: Latitude coordinates
@@ -155,17 +157,5 @@ def calculate_area(
     Returns:
         Grid cell areas in square kilometers
     """
-    R = 6371.0  # Earth radius in km
-    
-    # Convert to radians
-    lat = np.deg2rad(latitude)
-    lon = np.deg2rad(longitude)
-    
-    # Calculate cell dimensions
-    dx = R * np.cos(lat) * (lon[1] - lon[0])
-    dy = R * (lat[1] - lat[0])
-    
-    # Calculate area
-    area = abs(dx * dy)
-    
-    return area
+    dx, dy = get_grid_spacing(latitude.values, longitude.values)
+    return dx * dy

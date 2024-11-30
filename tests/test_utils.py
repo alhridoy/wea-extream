@@ -50,7 +50,7 @@ def test_calculate_percentile():
     p95 = stat_utils.calculate_percentile(data, q=95)
     
     assert isinstance(p95, (float, np.ndarray, xr.DataArray))
-    assert np.all(data <= p95)
+    assert np.all(data.values <= p95.values)
     assert np.mean(data > p95) < 0.1  # Roughly 5% should exceed 95th percentile
 
 

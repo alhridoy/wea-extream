@@ -1,259 +1,118 @@
 """Extreme weather event detection module."""
 
-import dataclasses
 from typing import Dict, Optional, Union, List, Tuple
 import numpy as np
 import xarray as xr
 from scipy import ndimage
 import pandas as pd
 
-from wx_extreme.utils import time_utils, spatial_utils
-
-
-@dataclasses.dataclass
-class EventDefinition:
-    """Definition of an extreme weather event.
-    
-    Attributes:
-        threshold: Threshold value for the variable
-        window: Time window for event persistence (in hours)
-        spatial_scale: Minimum spatial scale of the event (in km)
-        relative_to_climatology: Whether threshold is relative to climatology
-        percentile: If using percentile-based threshold
-        combine_vars: List of other variables and conditions for compound events
-    """
-    
-    threshold: float
-    window: str = "24h"
-    spatial_scale: float = 100.0  # km
-    relative_to_climatology: bool = False
-    percentile: Optional[float] = None
-    combine_vars: Optional[List[Dict[str, float]]] = None
-
-
 class ExtremeEventDetector:
-    """Detector for extreme weather events.
-    
-    This class provides methods to detect various types of extreme weather events
-    in meteorological data, including:
-    1. Single-variable threshold exceedance
-    2. Compound events involving multiple variables
-    3. Spatially coherent extremes
-    4. Persistent extreme events
-    """
+    """Detector for extreme weather events."""
     
     def __init__(
         self,
-        thresholds: Dict[str, Union[float, Dict]],
-        climatology: Optional[xr.Dataset] = None,
+        threshold_method: str = "percentile",
+        threshold_value: float = 95,
+        min_duration: int = 3,
+        spatial_scale: float = 0.0,  # degrees for spatial coherence
     ):
-        """Initialize the detector.
+        """Initialize extreme event detector.
         
         Args:
-            thresholds: Dictionary mapping variable names to their extreme event
-                definitions. Can be simple threshold values or dictionaries with
-                full event definitions.
-            climatology: Optional climatology dataset for relative thresholds.
+            threshold_method: Method for threshold ('percentile' or 'absolute')
+            threshold_value: Threshold value (percentile 0-100 or absolute value)
+            min_duration: Minimum duration in time steps for event
+            spatial_scale: Minimum spatial scale in degrees
         """
-        self.event_defs = {}
-        for var, thresh in thresholds.items():
-            if isinstance(thresh, (int, float)):
-                self.event_defs[var] = EventDefinition(threshold=float(thresh))
-            else:
-                self.event_defs[var] = EventDefinition(**thresh)
-        
-        self.climatology = climatology
-
+        self.threshold_method = threshold_method
+        self.threshold_value = threshold_value
+        self.min_duration = min_duration
+        self.spatial_scale = spatial_scale
+    
     def detect_events(
         self,
-        dataset: xr.Dataset,
-        return_severity: bool = False,
-    ) -> xr.Dataset:
-        """Detect extreme events in the dataset.
-        
-        Args:
-            dataset: Input dataset to analyze
-            return_severity: If True, return severity scores instead of binary mask
-            
-        Returns:
-            Dataset with boolean masks (or severity scores) for detected events
-        """
-        events = {}
-        
-        for var, event_def in self.event_defs.items():
-            if var not in dataset:
-                continue
-            
-            # Get base threshold
-            if event_def.relative_to_climatology and self.climatology is not None:
-                clim_mean = self.climatology[var].mean()
-                clim_std = self.climatology[var].std()
-                threshold = clim_mean + event_def.threshold * clim_std
-            elif event_def.percentile is not None:
-                threshold = np.percentile(dataset[var], event_def.percentile)
-            else:
-                threshold = event_def.threshold
-            
-            # Detect threshold exceedance
-            if return_severity:
-                events[f"{var}_extreme"] = (dataset[var] - threshold) / threshold
-                events[f"{var}_extreme"] = events[f"{var}_extreme"].where(
-                    events[f"{var}_extreme"] > 0, 0
-                )
-            else:
-                events[f"{var}_extreme"] = dataset[var] > threshold
-            
-            # Apply spatial coherence check if we have spatial dimensions
-            if (
-                event_def.spatial_scale > 0 and
-                hasattr(dataset, 'latitude') and
-                hasattr(dataset, 'longitude')
-            ):
-                events[f"{var}_extreme"] = self._apply_spatial_filter(
-                    events[f"{var}_extreme"],
-                    event_def.spatial_scale,
-                    dataset.latitude,
-                    dataset.longitude,
-                )
-            
-            # Check temporal persistence
-            if event_def.window:
-                window_size = pd.Timedelta(event_def.window)
-                events[f"{var}_extreme"] = self._check_persistence(
-                    events[f"{var}_extreme"], window_size
-                )
-            
-            # Handle compound events
-            if event_def.combine_vars:
-                for other_var in event_def.combine_vars:
-                    if other_var["var"] not in dataset:
-                        continue
-                    other_cond = (
-                        dataset[other_var["var"]] > other_var["threshold"]
-                    )
-                    events[f"{var}_extreme"] &= other_cond
-        
-        return xr.Dataset(events)
-
-    def _apply_spatial_filter(
-        self,
-        event_mask: xr.DataArray,
-        min_scale: float,
-        latitude: xr.DataArray,
-        longitude: xr.DataArray,
+        data: xr.DataArray,
+        climatology: Optional[xr.DataArray] = None
     ) -> xr.DataArray:
-        """Apply spatial coherence filtering.
+        """Detect extreme events in the data.
         
         Args:
-            event_mask: Boolean mask of events
-            min_scale: Minimum spatial scale in km
-            latitude: Latitude coordinates
-            longitude: Longitude coordinates
+            data: Input data array (must have 'time' dimension)
+            climatology: Optional baseline climatology
             
         Returns:
-            Filtered event mask
+            Boolean mask of detected events
         """
+        # Ensure data has expected dimensions
+        expected_dims = ['time', 'latitude', 'longitude']
+        if not all(dim in data.dims for dim in expected_dims):
+            raise ValueError(f"Data must have dimensions {expected_dims}")
+        
+        # Calculate threshold
+        if self.threshold_method == "percentile":
+            if climatology is not None:
+                threshold = climatology.quantile(
+                    self.threshold_value/100, dim="time"
+                )
+            else:
+                threshold = data.quantile(
+                    self.threshold_value/100, dim="time"
+                )
+        else:
+            threshold = self.threshold_value
+        
+        # Detect exceedances
+        events = data > threshold
+        
+        # Apply spatial coherence filter if requested
+        if self.spatial_scale > 0:
+            events = self._apply_spatial_filter(events)
+        
+        # Apply duration requirement
+        if self.min_duration > 1:
+            events = self._apply_duration_filter(events)
+        
+        # Transpose to expected dimension order
+        events = events.transpose('time', 'latitude', 'longitude')
+        
+        return events
+    
+    def _apply_spatial_filter(self, events: xr.DataArray) -> xr.DataArray:
+        """Apply spatial coherence filtering."""
+        if not hasattr(events, 'latitude') or not hasattr(events, 'longitude'):
+            return events
+        
         # Convert spatial scale to grid points
-        dx = spatial_utils.haversine_distance(
-            longitude[0, 0],
-            latitude[0, 0],
-            longitude[0, 1],
-            latitude[0, 0],
+        lat_res = abs(events.latitude[1] - events.latitude[0])
+        scale_px = max(1, int(self.spatial_scale / lat_res))
+        
+        # Create circular kernel for spatial filtering
+        y, x = np.ogrid[-scale_px:scale_px+1, -scale_px:scale_px+1]
+        kernel = x*x + y*y <= scale_px*scale_px
+        
+        # Apply opening operation for each time step
+        filtered = xr.apply_ufunc(
+            lambda x: ndimage.binary_opening(x, kernel),
+            events,
+            input_core_dims=[['latitude', 'longitude']],
+            output_core_dims=[['latitude', 'longitude']],
+            vectorize=True,
         )
-        dy = spatial_utils.haversine_distance(
-            longitude[0, 0],
-            latitude[0, 0],
-            longitude[0, 0],
-            latitude[1, 0],
+        
+        return filtered
+    
+    def _apply_duration_filter(self, events: xr.DataArray) -> xr.DataArray:
+        """Apply minimum duration requirement."""
+        # Create time window kernel
+        kernel = np.ones(self.min_duration)
+        
+        # Apply opening operation along time dimension
+        filtered = xr.apply_ufunc(
+            lambda x: ndimage.binary_opening(x, kernel),
+            events,
+            input_core_dims=[['time']],
+            output_core_dims=[['time']],
+            vectorize=True,
         )
         
-        min_points_x = int(np.ceil(min_scale / dx))
-        min_points_y = int(np.ceil(min_scale / dy))
-        
-        # Create structuring element for morphological operations
-        structure = np.ones((min_points_y, min_points_x))
-        
-        # Apply opening operation to remove small features
-        filtered = ndimage.binary_opening(event_mask.values, structure=structure)
-        
-        return xr.DataArray(
-            filtered,
-            dims=event_mask.dims,
-            coords=event_mask.coords,
-        )
-
-    def _check_persistence(
-        self,
-        event_mask: xr.DataArray,
-        window_size: pd.Timedelta,
-    ) -> xr.DataArray:
-        """Check temporal persistence of events.
-        
-        Args:
-            event_mask: Boolean mask of events
-            window_size: Minimum duration for events
-            
-        Returns:
-            Filtered event mask
-        """
-        # Get time resolution
-        time_diff = event_mask.time[1].values - event_mask.time[0].values
-        time_res = pd.Timedelta(time_diff)
-        window_steps = int(window_size / time_res)
-        
-        # Create structuring element for time dimension
-        structure = np.ones(window_steps)
-        
-        # Apply opening operation along time axis
-        filtered = ndimage.binary_opening(event_mask.values, structure=structure)
-        
-        return xr.DataArray(
-            filtered,
-            dims=event_mask.dims,
-            coords=event_mask.coords,
-        )
-
-    def get_event_statistics(
-        self,
-        dataset: xr.Dataset,
-        events: xr.Dataset,
-    ) -> Dict[str, Dict[str, float]]:
-        """Calculate statistics for detected events.
-        
-        Args:
-            dataset: Original data
-            events: Detected events dataset
-            
-        Returns:
-            Dictionary of event statistics
-        """
-        stats = {}
-        
-        for var in self.event_defs:
-            if f"{var}_extreme" not in events:
-                continue
-                
-            event_mask = events[f"{var}_extreme"]
-            
-            # Basic statistics
-            stats[var] = {
-                "frequency": float(event_mask.mean()),
-                "spatial_coverage": float(
-                    event_mask.mean(["latitude", "longitude"])
-                ),
-                "max_duration": int(
-                    event_mask.astype(int)
-                    .sum("time")
-                    .max(["latitude", "longitude"])
-                ),
-            }
-            
-            # Intensity statistics if we have the original variable
-            if var in dataset:
-                extreme_values = dataset[var].where(event_mask)
-                stats[var].update({
-                    "mean_intensity": float(extreme_values.mean()),
-                    "max_intensity": float(extreme_values.max()),
-                })
-        
-        return stats
+        return filtered

@@ -4,68 +4,73 @@ import numpy as np
 import xarray as xr
 import pandas as pd
 import pytest
-from datetime import datetime, timedelta
-
-from wx_extreme.core.evaluator import evaluate_extremes
-from wx_extreme.core.detector import ExtremeEventDetector
+from wx_extreme.core.evaluator import evaluate_extremes, label_events
 
 
-def test_evaluate_extremes():
-    """Test extreme event evaluation."""
-    # Create test data
-    times = pd.date_range('2020-01-01', '2020-01-10', freq='1h')
-    data = xr.DataArray(
-        np.random.randn(len(times)),
-        dims=['time'],
-        coords={'time': times}
-    )
+def create_test_events():
+    """Create synthetic events for testing."""
+    times = pd.date_range('2020-01-01', '2020-12-31', freq='D')
+    data = np.random.normal(25, 5, size=len(times))
+    events = np.zeros_like(data, dtype=bool)
     
-    # Create an extreme event (high values)
-    data[24:48] = 3.0  # One day of extreme values
+    # Add two events
+    events[180:190] = True  # 10-day event
+    events[250:255] = True  # 5-day event
     
-    # Create detector
-    detector = ExtremeEventDetector(
-        thresholds={'temperature': 2.0}
-    )
+    data = xr.DataArray(data, dims=['time'], coords={'time': times})
+    events = xr.DataArray(events, dims=['time'], coords={'time': times})
     
-    # Evaluate without reference
-    metrics = evaluate_extremes(data, detector)
+    return data, events
+
+
+def test_evaluate_basic():
+    """Test basic evaluation metrics."""
+    data, events = create_test_events()
+    metrics = evaluate_extremes(data, events)
     
-    assert isinstance(metrics, dict)
+    assert 'frequency' in metrics
+    assert 'mean_intensity' in metrics
+    assert 'max_intensity' in metrics
+    assert 'mean_duration' in metrics
+    assert 'max_duration' in metrics
+    
     assert metrics['frequency'] > 0
-    assert metrics['mean_intensity'] > 0
-    assert metrics['max_intensity'] > 0
     assert metrics['mean_duration'] > 0
-    assert metrics['max_duration'] > 0
-    
-    # Test with reference data
-    ref_data = data.copy()
-    ref_data[24:36] = 3.0  # Shorter event in reference
-    
-    metrics_with_ref = evaluate_extremes(data, detector, reference=ref_data)
-    
-    assert 'bias' in metrics_with_ref
-    assert 'intensity_bias' in metrics_with_ref
-    assert metrics_with_ref['bias'] >= 0  # Should detect more/longer events in data
+    assert metrics['max_duration'] >= metrics['mean_duration']
 
 
-def test_evaluate_extremes_no_events():
-    """Test evaluation when no events are found."""
-    times = pd.date_range('2020-01-01', '2020-01-10', freq='1h')
-    data = xr.DataArray(
-        np.zeros(len(times)),  # All zeros, no extremes
-        dims=['time'],
-        coords={'time': times}
-    )
+def test_evaluate_no_events():
+    """Test evaluation with no events."""
+    data, events = create_test_events()
+    events = events * False  # Set all to False
     
-    detector = ExtremeEventDetector(
-        thresholds={'temperature': 2.0}
-    )
-    
-    metrics = evaluate_extremes(data, detector)
+    metrics = evaluate_extremes(data, events)
     
     assert metrics['frequency'] == 0
     assert metrics['mean_intensity'] == 0
     assert metrics['max_intensity'] == 0
     assert metrics['mean_duration'] == 0
     assert metrics['max_duration'] == 0
+
+
+def test_evaluate_with_reference():
+    """Test evaluation against reference dataset."""
+    data, events = create_test_events()
+    reference = events.copy()
+    reference[100:105] = True  # Add different event in reference
+    
+    metrics = evaluate_extremes(data, events, reference)
+    
+    assert 'bias' in metrics
+    assert isinstance(metrics['bias'], float)
+
+
+def test_label_events():
+    """Test event labeling."""
+    _, events = create_test_events()
+    labeled, num = label_events(events)
+    
+    assert isinstance(labeled, xr.DataArray)
+    assert num == 2  # Should find two events
+    assert labeled.max() == 2
+    assert (labeled > 0).sum() == events.sum()

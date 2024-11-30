@@ -1,4 +1,4 @@
-"""Metrics for evaluating extreme weather events."""
+"""Metrics for evaluating extreme weather events and ML models."""
 
 from typing import Dict, List, Optional, Union
 import numpy as np
@@ -222,3 +222,129 @@ class DurationMetrics:
         o_mean = np.mean(o_durations) if o_durations else np.nan
         
         return f_mean / o_mean if o_mean != 0 else np.nan
+
+
+class MLModelMetrics:
+    """Metrics specific to ML model evaluation."""
+    
+    @staticmethod
+    def extreme_value_skill_score(
+        forecast: xr.DataArray,
+        observed: xr.DataArray,
+        threshold: float,
+        method: str = "absolute"
+    ) -> float:
+        """Calculate skill score for extreme value prediction.
+        
+        This metric focuses specifically on model performance for extreme events,
+        giving higher weight to accurate prediction of extremes.
+        """
+        if method == "percentile":
+            f_thresh = np.percentile(forecast, threshold)
+            o_thresh = np.percentile(observed, threshold)
+        else:
+            f_thresh = o_thresh = threshold
+            
+        # Calculate errors only for extreme events
+        f_extremes = forecast.where(observed > o_thresh)
+        o_extremes = observed.where(observed > o_thresh)
+        
+        # Calculate weighted RMSE
+        weights = (observed - o_thresh).where(observed > o_thresh)
+        weights = weights / weights.sum()
+        
+        mse = ((f_extremes - o_extremes)**2 * weights).sum()
+        rmse = float(np.sqrt(mse))
+        
+        return 1 / (1 + rmse)  # Convert to skill score (0-1)
+    
+    @staticmethod
+    def pattern_prediction_score(
+        forecast: xr.DataArray,
+        observed: xr.DataArray,
+        spatial_scale: float = 1.0,
+        temporal_scale: str = "1D"
+    ) -> float:
+        """Evaluate model's ability to predict spatial-temporal patterns."""
+        # Ensure data has expected dimensions
+        if not all(dim in forecast.dims for dim in ['time', 'latitude', 'longitude']):
+            raise ValueError("Data must have dimensions ['time', 'latitude', 'longitude']")
+        
+        # Calculate spatial correlation over time
+        spatial_corr = []
+        for t in forecast.time:
+            f_slice = forecast.sel(time=t)
+            o_slice = observed.sel(time=t)
+            if not np.all(np.isnan(f_slice)) and not np.all(np.isnan(o_slice)):
+                corr = stats.pearsonr(
+                    f_slice.values.flatten(),
+                    o_slice.values.flatten()
+                )[0]
+                if not np.isnan(corr):
+                    spatial_corr.append(corr)
+        
+        # Calculate temporal correlation at each point
+        temporal_corr = []
+        for lat in forecast.latitude:
+            for lon in forecast.longitude:
+                f_slice = forecast.sel(latitude=lat, longitude=lon)
+                o_slice = observed.sel(latitude=lat, longitude=lon)
+                if not np.all(np.isnan(f_slice)) and not np.all(np.isnan(o_slice)):
+                    corr = stats.pearsonr(f_slice.values, o_slice.values)[0]
+                    if not np.isnan(corr):
+                        temporal_corr.append(corr)
+        
+        # Combine scores (geometric mean)
+        if not spatial_corr or not temporal_corr:
+            return 0.0
+        
+        spatial_mean = np.mean(spatial_corr)
+        temporal_mean = np.mean(temporal_corr)
+        
+        # Handle negative correlations
+        if spatial_mean < 0 or temporal_mean < 0:
+            return 0.0
+        
+        return float(np.sqrt(spatial_mean * temporal_mean))
+    
+    @staticmethod
+    def physical_consistency_score(
+        forecast: xr.DataArray,
+        pressure: xr.DataArray,
+        observed: xr.DataArray
+    ) -> float:
+        """Evaluate physical consistency of model predictions.
+        
+        Args:
+            forecast: Model forecast data
+            pressure: Pressure levels
+            observed: Observed data
+            
+        Returns:
+            Physical consistency score (0-1)
+        """
+        # Check for perfect forecast
+        if np.allclose(forecast, observed):
+            return 1.0
+        
+        # Calculate potential temperature
+        from wx_extreme.utils.met_utils import potential_temperature
+        
+        # Ensure pressure has same shape as temperature
+        if pressure.shape != forecast.shape:
+            pressure = pressure.broadcast_like(forecast)
+        
+        theta_f = potential_temperature(forecast, pressure)
+        theta_o = potential_temperature(observed, pressure)
+        
+        # Calculate stability metrics
+        stability_f = theta_f.diff('latitude').mean()
+        stability_o = theta_o.diff('latitude').mean()
+        
+        # Calculate consistency score
+        score = 1.0 - abs(stability_f - stability_o) / (abs(stability_f) + abs(stability_o) + 1e-6)
+        
+        # Ensure score is between 0 and 1
+        score = max(0.0, min(1.0, float(score)))
+        
+        return score

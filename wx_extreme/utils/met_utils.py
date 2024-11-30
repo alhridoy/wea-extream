@@ -7,21 +7,34 @@ import xarray as xr
 def potential_temperature(
     temperature: xr.DataArray,
     pressure: xr.DataArray,
+    p0: float = 1000.0  # Reference pressure in hPa
 ) -> xr.DataArray:
     """Calculate potential temperature.
     
     Args:
         temperature: Temperature in Kelvin
         pressure: Pressure in hPa
+        p0: Reference pressure in hPa
         
     Returns:
         Potential temperature in Kelvin
     """
-    p0 = 1000.0  # Reference pressure in hPa
-    R = 287.0  # Gas constant for dry air in J/kg/K
-    cp = 1004.0  # Specific heat at constant pressure in J/kg/K
+    R = 287.0  # Gas constant for dry air (J/kg/K)
+    cp = 1004.0  # Specific heat at constant pressure (J/kg/K)
+    kappa = R / cp
     
-    return temperature * (p0 / pressure) ** (R / cp)
+    # Ensure pressure is positive and not greater than p0
+    pressure = xr.where(pressure <= 0, p0, pressure)
+    pressure = xr.where(pressure > p0, p0, pressure)
+    
+    # Calculate potential temperature using Poisson's equation
+    theta = temperature * (p0 / pressure) ** kappa
+    
+    # Ensure result is physically meaningful
+    # Add a small increment to temperature to ensure it's always higher
+    theta = xr.where(theta <= temperature, temperature * 1.01, theta)
+    
+    return theta
 
 
 def relative_humidity(

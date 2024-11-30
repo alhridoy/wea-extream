@@ -20,13 +20,8 @@ wheels/
 .installed.cfg
 *.egg
 
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# Environment
-.env
-.venv
-env/
+# Virtual Environment
+wx-env/
 venv/
 ENV/
 
@@ -36,11 +31,15 @@ ENV/
 *.swp
 *.swo
 
+# Test outputs
+test_results.png
+era5_temp.nc
+era5_events.nc
+
+# Jupyter
+.ipynb_checkpoints
+*.ipynb_checkpoints/
+
 # OS
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db

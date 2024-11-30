@@ -2,88 +2,76 @@
 
 import numpy as np
 import xarray as xr
-from typing import Dict, List, Union, Optional
-
-from wx_extreme.utils import time_utils, spatial_utils
-from wx_extreme.core.detector import ExtremeEventDetector
-
+from typing import Dict, List, Union, Optional, Tuple
+from scipy import ndimage
 
 def evaluate_extremes(
     data: xr.DataArray,
-    detector: ExtremeEventDetector,
+    events: xr.DataArray,
     reference: Optional[xr.DataArray] = None,
-    metrics: Optional[List[str]] = None
 ) -> Dict[str, float]:
-    """Evaluate extreme events in the data.
+    """Evaluate detected extreme events.
     
     Args:
         data: Input data array
-        detector: Extreme event detector instance
-        reference: Optional reference data for comparison
-        metrics: List of metrics to compute
+        events: Boolean mask of detected events
+        reference: Optional reference dataset
         
     Returns:
         Dictionary of evaluation metrics
     """
-    if metrics is None:
-        metrics = ['frequency', 'intensity', 'duration']
-        
     results = {}
     
-    # Create dataset with the variable name matching detector's thresholds
-    var_name = list(detector.event_defs.keys())[0]  # Get first variable name
-    ds = xr.Dataset({var_name: data})
+    # Basic metrics
+    results['frequency'] = float(events.mean())
     
-    # Detect extreme events
-    events = detector.detect_events(ds)
-    event_mask = events[f"{var_name}_extreme"]
-    
-    # Count events (connected components in time)
-    labeled_events, num_events = time_utils.label_events(event_mask)
-    
-    # Compute metrics
-    if 'frequency' in metrics:
-        results['frequency'] = num_events
+    if events.sum() > 0:
+        # Intensity metrics
+        anomalies = data.where(events)
+        results['mean_intensity'] = float(anomalies.mean())
+        results['max_intensity'] = float(anomalies.max())
         
-    if 'intensity' in metrics:
-        if num_events > 0:
-            # Calculate intensities where events occur
-            intensities = data.where(event_mask)
-            results['mean_intensity'] = float(intensities.mean().values)
-            results['max_intensity'] = float(intensities.max().values)
-        else:
-            results['mean_intensity'] = 0
-            results['max_intensity'] = 0
-            
-    if 'duration' in metrics:
-        if num_events > 0:
-            # Calculate durations for each event
-            durations = []
-            for i in range(1, num_events + 1):
-                event_duration = (labeled_events == i).sum()
-                durations.append(event_duration)
-            results['mean_duration'] = float(np.mean(durations))
-            results['max_duration'] = float(np.max(durations))
-        else:
-            results['mean_duration'] = 0
-            results['max_duration'] = 0
-            
+        # Duration metrics
+        labeled, num = label_events(events)
+        durations = []
+        for i in range(1, num + 1):
+            duration = (labeled == i).sum('time')
+            durations.append(float(duration))
+        
+        results['mean_duration'] = float(np.mean(durations))
+        results['max_duration'] = float(np.max(durations))
+    else:
+        results['mean_intensity'] = 0
+        results['max_intensity'] = 0
+        results['mean_duration'] = 0
+        results['max_duration'] = 0
+    
     # Compare with reference if provided
     if reference is not None:
-        ref_ds = xr.Dataset({var_name: reference})
-        ref_events = detector.detect_events(ref_ds)
-        ref_mask = ref_events[f"{var_name}_extreme"]
-        ref_labeled, ref_num = time_utils.label_events(ref_mask)
-        
-        results['bias'] = num_events - ref_num
-        
-        if num_events > 0 and ref_num > 0:
-            # Calculate intensity bias
-            ref_intensities = reference.where(ref_mask)
-            results['intensity_bias'] = float(
-                intensities.mean().values - ref_intensities.mean().values
-            )
-        else:
-            results['intensity_bias'] = 0
-            
+        results['bias'] = float(events.sum() - reference.sum())
+    
     return results
+
+def label_events(events: xr.DataArray) -> Tuple[xr.DataArray, int]:
+    """Label connected events in space and time.
+    
+    Args:
+        events: Boolean mask of events
+        
+    Returns:
+        Labeled array and number of events
+    """
+    # Create structure for 3D connectivity
+    struct = ndimage.generate_binary_structure(events.ndim, 1)
+    
+    # Label events
+    labeled, num = ndimage.label(events, structure=struct)
+    
+    # Convert to DataArray
+    labeled = xr.DataArray(
+        labeled,
+        dims=events.dims,
+        coords=events.coords
+    )
+    
+    return labeled, num
