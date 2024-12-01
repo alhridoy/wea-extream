@@ -1,159 +1,214 @@
-# WX-Extreme
+# WX-Extreme: Weather Extreme Event Detection and Validation
 
-A Python package for detecting and evaluating extreme weather events in climate data.
+A Python package for detecting and validating extreme weather events in meteorological datasets, with special support for comparing weather forecasts (like Pangu-Weather) against ground truth (like ERA5).
 
-## WeatherBench2 Limitations and WX-Extreme Solutions
+## Inspiration and Differences from WeatherBench2
 
-WX-Extreme extends WeatherBench2's capabilities by addressing several key limitations:
+WX-Extreme was inspired by [WeatherBench2](https://sites.research.google/weatherbench/), a benchmark dataset for machine learning in weather forecasting. While WeatherBench2 provides an excellent foundation for general forecast evaluation, WX-Extreme addresses specific limitations when it comes to extreme event prediction:
 
-### 1. Extreme Event Focus
-WeatherBench2:
-- Focuses on general forecast skill (RMSE, ACC)
-- Lacks specific extreme event detection
-- No duration or spatial coherence analysis
+### Key Differences
 
-WX-Extreme Solutions:
-- Flexible threshold definitions (percentile/absolute)
-- Minimum duration constraints
-- Spatial coherence requirements
-- Event-specific evaluation metrics
+1. **Event-Specific Focus**
+   - WeatherBench2: General metrics (RMSE, ACC) for overall forecast skill
+   - WX-Extreme: Specialized detection and validation of extreme events with:
+     - Configurable thresholds (percentile/absolute)
+     - Temporal persistence requirements
+     - Spatial coherence validation
+     - Event-specific metrics (POD, FAR)
 
-### 2. Physical Consistency
-WeatherBench2:
-- Limited physical consistency checks
-- No grid-aware validations
-- Basic thermodynamic relationships
+2. **Operational Considerations**
+   - WeatherBench2: Research-oriented evaluation framework
+   - WX-Extreme: Operational forecasting focus:
+     - Multiple forecast initialization times
+     - Lead time dependency analysis
+     - Forecast skill decay assessment
+     - Rolling evaluation windows
 
-WX-Extreme Solutions:
-- Comprehensive physical validation suite
-- Grid-aware spatial metrics
-- Advanced thermodynamic checks:
-  - Potential temperature relationships
-  - Hydrostatic balance
-  - Pattern prediction scoring
+3. **Regional Analysis**
+   - WeatherBench2: Global metrics and evaluation
+   - WX-Extreme: Support for regional studies:
+     - Flexible coordinate system handling
+     - Region-specific thresholds
+     - Local pattern analysis
+     - Area-weighted metrics
 
-### 3. Spatial Analysis
-WeatherBench2:
-- Global metrics only
-- No regional analysis capabilities
-- Fixed grid assumptions
+4. **Memory Efficiency**
+   - WeatherBench2: Full data loading approach
+   - WX-Extreme: Production-ready data handling:
+     - Intelligent chunking strategies
+     - Memory-efficient processing
+     - Parallel computation support
+     - Cloud storage integration
 
-WX-Extreme Solutions:
-- Grid spacing calculations
-- Area-weighted metrics
-- Regional event detection
-- Flexible grid handling
-- Spatial coherence validation
+5. **User Focus**
+   - WeatherBench2: Research benchmark dataset
+   - WX-Extreme: Operational tool with:
+     - Simple, intuitive API
+     - Clear documentation
+     - Practical examples
+     - Real-world use cases
 
-### 4. Statistical Robustness
-WeatherBench2:
-- Basic statistical measures
-- Limited extreme value analysis
-- No event duration statistics
+## Features
 
-WX-Extreme Solutions:
-- Advanced statistical tools:
-  - Exceedance probabilities
-  - Percentile-based thresholds
-  - Duration statistics
-  - Event frequency analysis
-  - Pattern correlation metrics
-
-### 5. Visualization
-WeatherBench2:
-- Basic plotting capabilities
-- Limited comparison tools
-- No event-specific visualization
-
-WX-Extreme Solutions:
-- Specialized visualization suite:
-  - Event heatmaps
-  - Model comparison plots
-  - Bias assessment visualizations
-  - Spatial pattern analysis plots
+- Extreme event detection using percentile or absolute thresholds
+- Support for spatial and temporal persistence criteria
+- Built-in support for ERA5 and Pangu-Weather data formats
+- Validation metrics for extreme event prediction
+- Visualization tools for event comparison
+- Operational forecast evaluation:
+  - Multiple initialization times
+  - Lead time analysis
+  - Forecast skill decay
+  - Rolling evaluation windows
 
 ## Installation
 
 ```bash
+# Clone the repository
+git clone https://github.com/yourusername/wx-extreme.git
+cd wx-extreme
+
+# Create and activate a virtual environment (recommended)
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install the package and dependencies
 pip install -r requirements.txt
+pip install -e .
 ```
 
-## Dataset Requirements
-
-The package works with weather/climate data that meets these specifications:
-
-### Required Data Format
-- **File Format**: NetCDF (.nc) or any xarray-compatible format
-- **Dimensions**: 
-  - time
-  - latitude (degrees North, -90 to 90)
-  - longitude (degrees East, -180 to 180)
-- **Variables**:
-  - Temperature (°C or K)
-  - Pressure levels (Pa) - for physical consistency evaluation
-
-### Recommended Data Sources
-1. **ERA5 Reanalysis**
-   - Resolution: 0.25° x 0.25°
-   - Variables: 2m temperature, surface pressure
-   - [Download from CDS](https://cds.climate.copernicus.eu/)
-
-2. **CMIP6 Model Outputs**
-   - Variables: tas (surface temperature), ps (surface pressure)
-   - [Download from ESGF](https://esgf-node.llnl.gov/projects/cmip6/)
-
-3. **Weather Model Forecasts**
-   - GFS (Global Forecast System)
-   - ECMWF forecasts
-
 ## Quick Start
+
+Here's a simple example of validating Pangu-Weather forecasts against ERA5 data:
 
 ```python
 from wx_extreme.core.detector import ExtremeEventDetector
 import xarray as xr
 
-# Load your data
-data = xr.open_dataset('temperature.nc')
-temperature = data['t2m']
+# Load your data (example using provided datasets)
+forecast = xr.open_dataset("path/to/forecast.zarr")
+analysis = xr.open_dataset("path/to/analysis.zarr")
 
-# Initialize detector
+# Create detector
 detector = ExtremeEventDetector(
     threshold_method="percentile",
-    threshold_value=95,
-    min_duration=3
+    threshold_value=95,  # 95th percentile
+    min_duration=3      # 3 time steps persistence
 )
 
 # Detect events
-events = detector.detect_events(temperature)
+forecast_events = detector.detect_events(forecast)
+analysis_events = detector.detect_events(analysis)
+
+# Calculate validation metrics
+hits = (forecast_events & analysis_events).sum().values
+misses = (~forecast_events & analysis_events).sum().values
+false_alarms = (forecast_events & ~analysis_events).sum().values
+
+pod = hits / (hits + misses)  # Probability of Detection
+far = false_alarms / (hits + false_alarms)  # False Alarm Ratio
 ```
 
-See `examples/model_evaluation.py` for a complete tutorial.
+## Operational Forecast Evaluation
 
-## Features
+The package supports evaluation of operational forecasting systems:
 
-1. **Event Detection**
-   - Percentile-based thresholds
-   - Absolute value thresholds
-   - Spatial coherence requirements
-   - Minimum duration constraints
+```python
+# Load forecast dataset with multiple initialization times
+forecast_ds = xr.open_dataset("forecasts.zarr")
+era5_ds = xr.open_dataset("era5.zarr")
 
-2. **Event Evaluation**
-   - Frequency analysis
-   - Intensity metrics
-   - Duration statistics
-   - Spatial extent
+# Evaluate forecast skill by lead time
+skill_df = evaluate_forecast_skill(
+    forecast_ds, 
+    era5_ds,
+    lead_times=range(24, 241, 24)  # 1-10 days
+)
 
-3. **Model Evaluation**
-   - Pattern prediction scoring
-   - Physical consistency checks
-   - Bias assessment
-   - Spatial correlation analysis
+# Plot skill metrics
+fig = plot_forecast_skill(skill_df)
+fig.savefig('forecast_skill.png')
+```
 
-## Dependencies
+This will analyze:
+- Forecast performance at different lead times
+- Skill decay over time
+- Initialization time dependence
+- Systematic biases
 
-- numpy
-- xarray
-- pandas
-- matplotlib
-- scipy
-- netCDF4
+## Example Scripts
+
+Check out `examples/validate_forecast.py` for a complete example that:
+1. Loads Pangu-Weather forecasts and ERA5 analysis data
+2. Handles coordinate system differences
+3. Detects extreme events
+4. Calculates validation metrics
+5. Creates comparison plots
+6. Evaluates operational forecast skill
+
+To run the example:
+```bash
+python examples/validate_forecast.py
+```
+
+## Data Requirements
+
+The package works with any NetCDF/Zarr dataset that has:
+- Temperature data in Kelvin or Celsius
+- Dimensions: time, latitude, longitude
+- For forecasts: init_time and fcst_hour dimensions
+- Coordinates in either 0-360° or -180-180° longitude convention
+
+Supported data sources:
+- ERA5 reanalysis (available through Copernicus/GCS)
+- Pangu-Weather forecasts
+- Any similar gridded weather data
+
+## API Reference
+
+### ExtremeEventDetector
+
+Main class for detecting extreme events.
+
+```python
+detector = ExtremeEventDetector(
+    threshold_method="percentile",  # or "absolute"
+    threshold_value=95,            # percentile or absolute value
+    min_duration=3,               # minimum event duration
+    spatial_scale=None           # minimum spatial scale (optional)
+)
+```
+
+Methods:
+- `detect_events(data)`: Detect extreme events in the input data
+- `_compute_threshold(data)`: Compute detection threshold
+- `_apply_duration_filter(events)`: Apply temporal persistence criteria
+- `_apply_spatial_filter(events)`: Apply spatial coherence criteria
+
+### Forecast Evaluation
+
+Functions for operational forecast evaluation:
+
+- `evaluate_forecast_skill()`: Analyze forecast performance by lead time
+- `plot_forecast_skill()`: Visualize forecast skill metrics
+- `normalize_coords()`: Handle coordinate system differences
+
+## Contributing
+
+Contributions are welcome! Please see CONTRIBUTING.md for guidelines.
+
+## License
+
+This project is licensed under the MIT License - see LICENSE file for details.
+
+## Citation
+
+If you use this package in your research, please cite:
+```
+@software{wx_extreme,
+  title = {WX-Extreme: Weather Extreme Event Detection and Validation},
+  author = {Al-Ekram Elahee Hridoy},
+  year = {2024},
+  url = {https://github.com/yourusername/wx-extreme}
+}
+```

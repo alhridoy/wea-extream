@@ -21,9 +21,9 @@ wheels/
 *.egg
 
 # Virtual Environment
-wx-env/
 venv/
 ENV/
+env/
 
 # IDE
 .idea/
@@ -31,14 +31,29 @@ ENV/
 *.swp
 *.swo
 
-# Test outputs
-test_results.png
-era5_temp.nc
-era5_events.nc
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# Data
+*.nc
+*.zarr
+*.h5
+*.hdf5
+*.grib
+*.grib2
+
+# Output
+*.png
+*.jpg
+*.pdf
+*.html
 
 # Jupyter
 .ipynb_checkpoints
-*.ipynb_checkpoints/
+*.ipynb
 
 # OS
 .DS_Store
