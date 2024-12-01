@@ -350,34 +350,13 @@ class MLModelMetrics:
         return score
 
 def load_forecast_data():
-    """Load Pangu-Weather forecast from ECMWF ADS."""
-    import cdsapi
-    import tempfile
-    import os
-    
-    c = cdsapi.Client()
-    
-    # Create a temporary file
-    temp_dir = tempfile.mkdtemp()
-    output_file = os.path.join(temp_dir, 'forecast.nc')
-    
-    try:
-        c.retrieve(
-            'pangu-weather-forecasts',
-            {
-                'variable': '2m_temperature',
-                'year': '2024',
-                'month': '01',
-                'day': '01',
-                'time': '00:00',
-                'format': 'netcdf'
-            },
-            output_file
-        )
-        
-        return xr.open_dataset(output_file)
-    finally:
-        # Clean up temporary file
-        if os.path.exists(output_file):
-            os.remove(output_file)
-        os.rmdir(temp_dir)
+    """Load Pangu-Weather forecast from Google Cloud Storage."""
+    return xr.open_dataset(
+        "gs://weather-ml-data/pangu-weather/t2m_latest.zarr",
+        engine="zarr",
+        backend_kwargs={
+            "storage_options": {
+                "token": "anon"  # For public buckets
+            }
+        }
+    )
