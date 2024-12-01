@@ -2,8 +2,6 @@
 
 from wx_extreme.core.detector import ExtremeEventDetector
 from wx_extreme.core.evaluator import evaluate_extremes
-from wx_extreme.core.physics import PhysicsValidator
-from wx_extreme.core.patterns import PatternAnalyzer
 from wx_extreme.core.metrics import (
     ExtremeMetrics,
     PhysicalConsistencyMetrics,
@@ -18,8 +16,6 @@ __email__ = "aliqramalaheehridoy@gmail.com"
 __all__ = [
     "ExtremeEventDetector",
     "evaluate_extremes",
-    "PhysicsValidator",
-    "PatternAnalyzer",
     "ExtremeMetrics",
     "PhysicalConsistencyMetrics",
     "PatternMetrics",

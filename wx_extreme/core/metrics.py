@@ -348,3 +348,15 @@ class MLModelMetrics:
         score = max(0.0, min(1.0, float(score)))
         
         return score
+
+def load_forecast_data():
+    """Load Pangu-Weather forecast from AWS S3."""
+    return xr.open_dataset(
+        "s3://pangu-weather-public/forecasts/latest/t2m.zarr",
+        engine="zarr",
+        backend_kwargs={
+            "storage_options": {
+                "anon": True
+            }
+        }
+    )
