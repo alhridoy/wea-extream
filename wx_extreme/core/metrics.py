@@ -349,14 +349,68 @@ class MLModelMetrics:
         
         return score
 
-def load_forecast_data():
-    """Load Pangu-Weather forecast from Google Cloud Storage."""
-    return xr.open_dataset(
-        "gs://weather-ml-data/pangu-weather/t2m_latest.zarr",
-        engine="zarr",
-        backend_kwargs={
-            "storage_options": {
-                "token": "anon"  # For public buckets
+def load_forecast_data(
+    variable: str = "TMP_2m",  # 2m temperature
+    forecast_hour: int = 0,  # Analysis/initial time
+    resolution: str = "0p25"  # 0.25 degree (~28km) resolution
+) -> xr.Dataset:
+    """Load NOAA GFS forecast data from Google Cloud Storage.
+    
+    Args:
+        variable: GFS variable name (e.g., 'TMP_2m', 'PRATE', 'RH_2m')
+        forecast_hour: Forecast hour (0 for analysis, up to 384 for 16-day forecast)
+        resolution: Grid resolution ('0p25' for 0.25°, '1p00' for 1.0°)
+        
+    Returns:
+        xarray Dataset containing the requested forecast data
+        
+    Example:
+        >>> ds = load_forecast_data(variable='TMP_2m', forecast_hour=24)
+        >>> print(ds.t2m)  # Access 2m temperature
+    """
+    from datetime import datetime, timedelta
+    import pandas as pd
+    
+    # Get current cycle (GFS updates every 6 hours: 00, 06, 12, 18 UTC)
+    now = datetime.utcnow()
+    cycle = now.hour - (now.hour % 6)
+    date = now.strftime("%Y%m%d")
+    
+    # Construct GFS path
+    base_url = "gs://global-forecast-system"
+    cycle_path = f"{date}/{cycle:02d}/atmos"
+    filename = f"gfs.0p25.{date}{cycle:02d}.f{forecast_hour:03d}.grib2"
+    full_path = f"{base_url}/{cycle_path}/{filename}"
+    
+    try:
+        # Load specific variable from GRIB2 file
+        ds = xr.open_dataset(
+            full_path,
+            engine="cfgrib",
+            backend_kwargs={
+                "filter_by_keys": {"shortName": variable},
+                "storage_options": {"token": "anon"}
             }
-        }
-    )
+        )
+        
+        # Convert temperature from Kelvin to Celsius if needed
+        if variable == "TMP_2m":
+            ds["t2m"] = ds["t2m"] - 273.15
+            
+        return ds
+        
+    except Exception as e:
+        # Try previous cycle if current one isn't available yet
+        prev_date = (now - timedelta(hours=6)).strftime("%Y%m%d")
+        prev_cycle = (cycle - 6) % 24
+        prev_path = f"{base_url}/{prev_date}/{prev_cycle:02d}/atmos"
+        prev_file = f"gfs.0p25.{prev_date}{prev_cycle:02d}.f{forecast_hour:03d}.grib2"
+        
+        return xr.open_dataset(
+            f"{prev_path}/{prev_file}",
+            engine="cfgrib",
+            backend_kwargs={
+                "filter_by_keys": {"shortName": variable},
+                "storage_options": {"token": "anon"}
+            }
+        )
