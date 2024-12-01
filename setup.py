@@ -8,9 +8,9 @@ setup(
     description="Weather Extreme Event Detection and Validation",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
-    author="Your Name",
-    author_email="your.email@example.com",
-    url="https://github.com/yourusername/wx-extreme",
+    author="Al-Ekram Elahee Hridoy",
+    author_email="alekram.elahee@gmail.com",
+    url="https://github.com/alhridoy/wx-extreme",
     packages=find_packages(),
     install_requires=[
         "numpy>=1.20.0",
@@ -37,4 +37,9 @@ setup(
         "Programming Language :: Python :: 3.11",
         "Topic :: Scientific/Engineering :: Atmospheric Science",
     ],
+    keywords="weather climate extreme-events machine-learning forecasting",
+    project_urls={
+        "Bug Reports": "https://github.com/alhridoy/wx-extreme/issues",
+        "Source": "https://github.com/alhridoy/wx-extreme",
+    },
 )
