@@ -50,6 +50,9 @@ htmlcov/
 *.jpg
 *.pdf
 *.html
+!plots/*.png
+!plots/*.jpg
+!plots/*.pdf
 
 # Jupyter
 .ipynb_checkpoints
