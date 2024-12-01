@@ -24,6 +24,7 @@ setup(
         "zarr>=2.11.0",
         "gcsfs>=2022.1.0",
         "netCDF4>=1.5.0",
+        "seaborn>=0.11.0",
     ],
     python_requires=">=3.8",
     classifiers=[
