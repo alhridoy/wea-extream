@@ -12,8 +12,8 @@ from wx_extreme.core.metrics import (
 )
 
 __version__ = "0.1.0"
-__author__ = "Your Name"
-__email__ = "your.email@example.com"
+__author__ = "Al-Ekram Elahee Hridoy"
+__email__ = "aliqramalaheehridoy@gmail.com"
 
 __all__ = [
     "ExtremeEventDetector",

@@ -2,6 +2,8 @@
 
 A Python package for detecting and validating extreme weather events in meteorological datasets, with special support for comparing weather forecasts (like Pangu-Weather) against ground truth (like ERA5).
 
+> **Note:** "WX" is the traditional meteorological abbreviation for "weather", commonly used in aviation and weather forecasting.
+
 ## Inspiration and Differences from WeatherBench2
 
 WX-Extreme was inspired by [WeatherBench2](https://sites.research.google/weatherbench/), a benchmark dataset for machine learning in weather forecasting. While WeatherBench2 provides an excellent foundation for general forecast evaluation, WX-Extreme addresses specific limitations when it comes to extreme event prediction:
@@ -209,6 +211,6 @@ If you use this package in your research, please cite:
   title = {WX-Extreme: Weather Extreme Event Detection and Validation},
   author = {Al-Ekram Elahee Hridoy},
   year = {2024},
-  url = {https://github.com/yourusername/wx-extreme}
+  url = {https://github.com/alhridoy/wx-extreme}
 }
 ```
