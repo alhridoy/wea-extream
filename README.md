@@ -2,6 +2,204 @@
 
 Advanced Evaluation Framework for Extreme Weather Events in AI Weather Models
 
+## Core Functionality
+
+WX-Extreme provides three main components:
+
+### 1. Event Detection
+- Flexible threshold-based detection (percentile or absolute)
+- Spatial and temporal coherence filtering
+- Duration-based event classification
+- Support for multiple meteorological variables
+
+```python
+from wx_extreme.core.detector import ExtremeEventDetector
+
+# Initialize detector
+detector = ExtremeEventDetector(
+    threshold_method="percentile",  # or "absolute"
+    threshold_value=95,            # 95th percentile
+    min_duration=3,               # minimum 3 days
+    spatial_scale=2.0             # spatial coherence in degrees
+)
+
+# Detect events
+events = detector.detect_events(temperature_data)
+```
+
+### 2. Comprehensive Metrics
+- Basic Statistics:
+  - Event frequency
+  - Mean and maximum intensity
+  - Duration statistics
+  - Spatial extent
+
+- Advanced ML Metrics:
+  - Extreme Value Skill Score (EVSS)
+  - Pattern Prediction Score (PPS)
+  - Physical Consistency Score (PCS)
+  - Temporal Evolution Score (TES)
+
+```python
+from wx_extreme.core.metrics import MLModelMetrics
+
+# Initialize metrics
+metrics = MLModelMetrics()
+
+# Calculate comprehensive metrics
+skill_score = metrics.extreme_value_skill_score(
+    forecast=model_output,
+    reference=observations,
+    threshold=30  # °C
+)
+
+pattern_score = metrics.pattern_prediction_score(
+    forecast=model_output,
+    reference=observations,
+    spatial_scale=1.0
+)
+
+consistency_score = metrics.physical_consistency_score(
+    forecast=model_output,
+    pressure=pressure_levels,
+    reference=observations
+)
+```
+
+### 3. Visualization Tools
+- Spatial distribution maps
+- Time series analysis
+- Model comparison plots
+- Event evolution tracking
+
+```python
+from wx_extreme.utils.plot_utils import (
+    plot_model_comparison_heatmap,
+    plot_extreme_event_heatmap
+)
+
+# Plot model comparison
+plot_model_comparison_heatmap(
+    forecast=model_output,
+    reference=observations,
+    metric='bias',
+    title='Temperature Bias'
+)
+
+# Plot extreme events
+plot_extreme_event_heatmap(
+    events=detected_events,
+    data=temperature_data
+)
+```
+
+## Basic Usage Examples
+
+### 1. Detecting Heatwaves
+```python
+import xarray as xr
+from wx_extreme.core.detector import ExtremeEventDetector
+
+# Load temperature data
+data = xr.open_dataset('temperature.nc')
+temp = data['t2m']  # 2-meter temperature
+
+# Configure detector for heatwaves
+detector = ExtremeEventDetector(
+    threshold_method="percentile",
+    threshold_value=95,
+    min_duration=3,
+    spatial_scale=2.0
+)
+
+# Detect heatwaves
+heatwaves = detector.detect_events(temp)
+
+# Get heatwave statistics
+stats = {
+    'total_events': heatwaves.sum().item(),
+    'max_temperature': temp.where(heatwaves).max().item(),
+    'mean_duration': (heatwaves.sum('time') / heatwaves.any('time').sum()).item()
+}
+```
+
+### 2. Model Validation Pipeline
+```python
+from wx_extreme.core.evaluator import evaluate_extremes
+from wx_extreme.core.metrics import MLModelMetrics
+
+# Load model output and observations
+forecast = xr.open_dataset('forecast.nc')['t2m']
+obs = xr.open_dataset('observation.nc')['t2m']
+
+# Basic evaluation
+basic_metrics = evaluate_extremes(forecast, events, reference=obs)
+
+# Advanced ML metrics
+ml_metrics = MLModelMetrics()
+scores = {
+    'extreme_skill': ml_metrics.extreme_value_skill_score(forecast, obs),
+    'pattern_skill': ml_metrics.pattern_prediction_score(forecast, obs),
+    'consistency': ml_metrics.physical_consistency_score(forecast, pressure, obs)
+}
+
+# Visualize results
+plot_model_comparison_heatmap(
+    forecast, obs, metric='bias',
+    title='Forecast Temperature Bias'
+)
+```
+
+### 3. Batch Processing Multiple Models
+```python
+import pandas as pd
+
+models = ['model1', 'model2', 'model3']
+results = []
+
+for model in models:
+    # Load model data
+    forecast = xr.open_dataset(f'{model}_forecast.nc')['t2m']
+    
+    # Detect events
+    events = detector.detect_events(forecast)
+    
+    # Evaluate
+    metrics = evaluate_extremes(forecast, events, reference=obs)
+    ml_scores = ml_metrics.extreme_value_skill_score(forecast, obs)
+    
+    # Store results
+    results.append({
+        'model': model,
+        'event_count': events.sum().item(),
+        'skill_score': ml_scores,
+        **metrics
+    })
+
+# Create comparison DataFrame
+comparison = pd.DataFrame(results)
+```
+
+## Validation Results
+
+### Comprehensive Metrics
+![Comprehensive Metrics](plots/comprehensive_metrics.png)
+
+The plot shows multiple evaluation metrics for different models:
+- Extreme Event Detection Skill
+- Pattern Prediction Accuracy
+- Physical Consistency Score
+- Temporal Evolution Score
+
+### Forecast Validation
+![Forecast Validation](plots/forecast_validation.png)
+
+The validation plot demonstrates:
+- Top left: Model forecast temperature field
+- Top right: Ground truth temperature field
+- Bottom left: Detected extreme events in forecast
+- Bottom right: Detected extreme events in observations
+
 ## Overview
 
 WX-Extreme is a Python package for evaluating extreme weather events in machine learning weather forecasting models. This project is inspired by [WeatherBench2](https://sites.research.google/weatherbench/) and addresses specific challenges in evaluating extreme weather events in ML weather models.
