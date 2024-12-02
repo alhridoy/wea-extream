@@ -25,29 +25,122 @@ This project currently supports evaluation of:
 ## Installation
 
 ```bash
+# Clone the repository
+git clone https://github.com/alhridoy/wea-extream.git
+cd wea-extream
+
+# Create and activate a virtual environment (recommended)
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-## Usage
+## User Guide
 
-### Basic Example
+### Data Requirements
+
+Your input data should be in one of these formats:
+1. **NetCDF (.nc) files** with:
+   - Temperature data in Kelvin or Celsius
+   - Dimensions: time, latitude, longitude
+   - For forecasts: init_time and fcst_hour dimensions
+   - Coordinates in either 0-360° or -180-180° longitude convention
+
+2. **Zarr (.zarr) files** with similar structure
+
+### Example: Evaluating a Heat Wave Forecast
 
 ```python
+import xarray as xr
 from wx_extreme.core.detector import ExtremeEventDetector
 from wx_extreme.core.evaluator import evaluate_extremes
 
-# Initialize detector
+# 1. Load your forecast and ground truth data
+forecast = xr.open_dataset("path/to/your/forecast.nc")  # Your model's forecast
+ground_truth = xr.open_dataset("path/to/ground_truth.nc")  # ERA5 or observations
+
+# 2. Initialize the detector
 detector = ExtremeEventDetector(
-    threshold_method="percentile",
-    threshold_value=95,
-    min_duration=3
+    threshold_method="percentile",  # or "absolute"
+    threshold_value=95,            # 95th percentile
+    min_duration=3,               # minimum 3 timesteps
+    spatial_scale=2.0            # minimum 2° spatial extent
 )
 
-# Detect events
-events = detector.detect_events(data)
+# 3. Detect extreme events
+forecast_events = detector.detect_events(forecast)
+truth_events = detector.detect_events(ground_truth)
 
-# Evaluate results
-metrics = evaluate_extremes(data, events)
+# 4. Evaluate the results
+metrics = evaluate_extremes(
+    forecast=forecast,
+    ground_truth=ground_truth,
+    forecast_events=forecast_events,
+    truth_events=truth_events
+)
+
+print(metrics)
+```
+
+### Example: Operational Forecast Evaluation
+
+```python
+import pandas as pd
+from wx_extreme.core.metrics import evaluate_forecast_skill
+
+# Load multiple forecast initializations
+forecasts = xr.open_dataset("path/to/forecasts.nc")
+era5 = xr.open_dataset("path/to/era5.nc")
+
+# Evaluate skill by lead time
+skill_df = evaluate_forecast_skill(
+    forecasts,
+    era5,
+    lead_times=range(24, 241, 24)  # 1-10 days
+)
+
+# Plot results
+from wx_extreme.utils.plot_utils import plot_forecast_skill
+fig = plot_forecast_skill(skill_df)
+fig.savefig('forecast_skill.png')
+```
+
+### Accessing Pre-prepared Data
+
+We provide easy access to common datasets:
+
+```python
+from wx_extreme.core.metrics import get_panguweather_t2_forecasts, load_era5_data
+
+# Load Pangu-Weather forecasts
+ml_forecasts = get_panguweather_t2_forecasts()
+
+# Load ERA5 data
+era5_data = load_era5_data()
+```
+
+### Memory Efficiency for Large Datasets
+
+For large datasets, use chunking:
+
+```python
+import dask
+
+# Set up chunking strategy
+chunks = {
+    'time': 50,
+    'latitude': 20,
+    'longitude': 20
+}
+
+# Load data with chunks
+data = xr.open_dataset("large_dataset.nc", chunks=chunks)
+
+# Use dask for parallel processing
+with dask.config.set(scheduler='threads'):
+    result = detector.detect_events(data)
 ```
 
 ## Validation Results
@@ -97,7 +190,7 @@ If you use WX-Extreme in your research, please cite:
   title = {WX-Extreme: Advanced Evaluation Framework for Extreme Weather Events in ML Models},
   year = {2024},
   publisher = {GitHub},
-  url = {https://github.com/alhridoy/wx-extreme}
+  url = {https://github.com/alhridoy/wea-extream}
 }
 ```
 

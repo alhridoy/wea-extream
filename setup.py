@@ -10,7 +10,7 @@ setup(
     long_description_content_type="text/markdown",
     author="Al-Ekram Elahee Hridoy",
     author_email="alekram.elahee@gmail.com",
-    url="https://github.com/alhridoy/wx-extreme",
+    url="https://github.com/alhridoy/wea-extream",
     packages=find_packages(),
     install_requires=[
         "numpy>=1.20.0",
@@ -40,7 +40,7 @@ setup(
     ],
     keywords="weather climate extreme-events machine-learning forecasting",
     project_urls={
-        "Bug Reports": "https://github.com/alhridoy/wx-extreme/issues",
-        "Source": "https://github.com/alhridoy/wx-extreme",
+        "Bug Reports": "https://github.com/alhridoy/wea-extream/issues",
+        "Source": "https://github.com/alhridoy/wea-extream",
     },
 )
