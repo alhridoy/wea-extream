@@ -55,6 +55,114 @@ metrics = calculate_forecast_metrics(
 # - Categorical: POD, FAR, CSI, HSS, ETS (when threshold provided)
 ```
 
+## Basic Usage
+
+### 1. Detecting Heat Waves
+```python
+import xarray as xr
+from wx_extreme.core.detector import ExtremeEventDetector
+
+# Load your temperature data (must have time, latitude, longitude dimensions)
+data = xr.open_dataset('temperature.nc')
+temp = data['t2m']
+
+# For temperature in Kelvin, convert to Celsius
+if temp.max() > 100:
+    temp = temp - 273.15
+
+# Initialize detector for heat waves
+detector = ExtremeEventDetector(
+    threshold_method="percentile",  # Use percentile threshold
+    threshold_value=95,            # 95th percentile
+    min_duration=3,               # At least 3 time steps
+    spatial_scale=2.0             # Minimum 2 grid points spatial extent
+)
+
+# Detect heat waves
+heatwaves = detector.detect_events(temp)
+```
+
+### 2. Evaluating Model Forecasts
+```python
+from wx_extreme.core.metrics import calculate_forecast_metrics
+
+# Load forecast and observation data
+forecast = xr.open_dataset('forecast.nc')['t2m']
+obs = xr.open_dataset('observation.nc')['t2m']
+
+# Calculate verification metrics
+metrics = calculate_forecast_metrics(
+    forecast=forecast,
+    observation=obs,
+    dim=['latitude', 'longitude']  # Dimensions for pattern metrics
+)
+
+# Print key metrics
+print(f"Bias: {metrics['bias']:.2f}°C")
+print(f"RMSE: {metrics['rmse']:.2f}°C")
+print(f"Pattern Correlation: {metrics['pattern_correlation']:.3f}")
+
+# For categorical verification (e.g., extreme events)
+forecast.attrs['threshold'] = 30  # Set temperature threshold (°C)
+categorical_metrics = calculate_forecast_metrics(forecast, obs)
+print(f"Hit Rate: {categorical_metrics['pod']:.2f}")
+print(f"False Alarm Ratio: {categorical_metrics['far']:.2f}")
+print(f"Critical Success Index: {categorical_metrics['csi']:.2f}")
+```
+
+### 3. Analyzing Results
+```python
+import matplotlib.pyplot as plt
+
+# Plot detected events for a specific time
+plt.figure(figsize=(10, 5))
+heatwaves.isel(time=0).plot()
+plt.title('Detected Heat Waves')
+plt.savefig('heatwave_map.png')
+
+# Calculate event statistics
+total_events = heatwaves.sum().item()
+event_days = heatwaves.sum('time').values
+max_temp = temp.where(heatwaves).max().item()
+
+print(f"Total event grid points: {total_events}")
+print(f"Maximum temperature during events: {max_temp:.1f}°C")
+```
+
+### Example Data Sources
+
+The package works with any NetCDF or Zarr data that has the required dimensions (time, latitude, longitude). Some compatible data sources:
+
+1. ERA5 Reanalysis:
+```python
+import cdsapi
+
+c = cdsapi.Client()
+c.retrieve(
+    'reanalysis-era5-single-levels',
+    {
+        'variable': '2m_temperature',
+        'year': '2023',
+        'month': '07',
+        'day': list(range(1, 32)),
+        'time': [f'{h:02d}:00' for h in range(24)],
+        'format': 'netcdf'
+    },
+    'era5_temp.nc'
+)
+```
+
+2. GFS Forecast Data:
+```python
+import xarray as xr
+from datetime import datetime
+
+date = datetime.now().strftime('%Y%m%d')
+url = f'https://nomads.ncep.noaa.gov/dods/gfs_0p25/gfs{date}'
+gfs = xr.open_dataset(url)
+temp = gfs['tmp2m']  # 2-meter temperature
+```
+
 ## Validation Results
 
 ### Forecast Skill
