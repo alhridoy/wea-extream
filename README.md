@@ -14,12 +14,9 @@ WX-Extreme is a comprehensive Python package for evaluating extreme weather even
 ## Installation
 
 ```bash
-# Install from PyPI
-pip install wx-extreme
-
 # Install from source
-git clone https://github.com/alhridoy/weatherbench2.git
-cd weatherbench2
+git clone https://github.com/alhridoy/wea-extream.git
+cd wea-extream
 pip install -e .
 ```
 
@@ -257,17 +254,48 @@ summary.to_csv('regional_validation.csv')
 
 ## Validation Results
 
-### Comprehensive Metrics
-![Comprehensive Metrics](https://raw.githubusercontent.com/alhridoy/weatherbench2/main/plots/comprehensive_metrics.png)
+### Forecast Skill
+![Forecast Skill](plots/forecast_skill.png)
 
-The plot shows multiple evaluation metrics for different models:
-- Extreme Event Detection Skill
-- Pattern Prediction Accuracy
-- Physical Consistency Score
-- Temporal Evolution Score
+The plot shows:
+- Top: Temperature bias (°C)
+- Middle: Root Mean Square Error (°C)
+- Bottom: Pattern correlation
+
+Each line represents a different forecast initialization time, showing how forecast skill evolves with lead time.
+
+### Comprehensive Metrics
+![Comprehensive Metrics](plots/comprehensive_metrics.png)
+
+The comprehensive evaluation includes:
+1. Basic Error Metrics:
+   - Bias: Systematic error in forecasts
+   - RMSE: Overall magnitude of errors
+   - MAE: Average absolute error
+
+2. Pattern Metrics:
+   - Pattern Correlation: Spatial correlation
+   - ACC: Anomaly Correlation Coefficient
+
+3. Skill Scores:
+   - MSE Skill Score: Improvement over climatology
+   - Murphy Score: Forecast skill accounting for variance
+
+4. Extreme Event Metrics:
+   - POD: Probability of Detection
+   - FAR: False Alarm Ratio
+   - CSI: Critical Success Index
+   - HSS: Heidke Skill Score
+   - ETS: Equitable Threat Score
+
+Key findings:
+- Strong pattern correlation (>0.98) throughout the forecast period
+- RMSE increases from ~2.2°C at day 1 to ~3.8°C at day 10
+- Small cold bias that increases with forecast lead time
+- High extreme event detection skill (HSS > 0.7) for the first 5 days
 
 ### Forecast Validation
-![Forecast Validation](https://raw.githubusercontent.com/alhridoy/weatherbench2/main/plots/forecast_validation.png)
+![Forecast Validation](plots/forecast_validation.png)
 
 The validation plot demonstrates:
 - Top left: Model forecast temperature field
