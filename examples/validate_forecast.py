@@ -7,7 +7,11 @@ import pandas as pd
 import xarray as xr
 import dask
 from wx_extreme.core.detector import ExtremeEventDetector
-from wx_extreme.core.metrics import get_panguweather_t2_forecasts, load_era5_data
+from wx_extreme.core.metrics import (
+    get_panguweather_t2_forecasts, 
+    load_era5_data,
+    calculate_forecast_metrics
+)
 
 def evaluate_forecast_skill():
     """Evaluate forecast skill at different lead times."""
@@ -58,41 +62,45 @@ def evaluate_forecast_skill():
             f = f.t2 - 273.15
             a = a['2m_temperature'] - 273.15
             
-            # Calculate metrics
-            diff = f - a
-            bias = float(diff.mean().values)
-            rmse = float(np.sqrt((diff ** 2).mean().values))
-            corr = float(xr.corr(f, a, dim=['latitude', 'longitude']).values)
+            # Add threshold for extreme events
+            f.attrs['threshold'] = np.percentile(a, 95)
             
-            results.append({
+            # Calculate comprehensive metrics
+            metrics = calculate_forecast_metrics(f, a)
+            metrics.update({
                 'init_time': pd.Timestamp(init_time.values),
                 'fcst_hour': float(fcst_hour),
                 'valid_time': valid_time,
-                'bias': bias,
-                'rmse': rmse,
-                'correlation': corr
             })
+            
+            results.append(metrics)
     
     return pd.DataFrame(results)
 
 def plot_forecast_skill(skill_df):
     """Plot forecast skill metrics by forecast hour."""
-    fig, axes = plt.subplots(3, 1, figsize=(10, 12))
+    metric_groups = {
+        'Basic Error Metrics': ['bias', 'rmse', 'mae'],
+        'Pattern Metrics': ['correlation', 'acc'],
+        'Skill Scores': ['mse_skill_score', 'murphy_score'],
+        'Extreme Event Metrics': ['pod', 'far', 'csi', 'hss', 'ets']
+    }
     
-    metrics = ['bias', 'rmse', 'correlation']
-    titles = ['Bias (°C)', 'RMSE (°C)', 'Pattern Correlation']
+    n_groups = len(metric_groups)
+    fig, axes = plt.subplots(n_groups, 1, figsize=(12, 4*n_groups))
     
-    for ax, metric, title in zip(axes, metrics, titles):
-        for init_time in skill_df.init_time.unique():
-            df = skill_df[skill_df.init_time == init_time]
-            ax.plot(df.fcst_hour, df[metric], 
-                   alpha=0.5, label=init_time.strftime('%Y-%m-%d %H:%M'))
+    for ax, (group_name, metrics) in zip(axes, metric_groups.items()):
+        for metric in metrics:
+            if metric in skill_df.columns:
+                ax.plot(skill_df.fcst_hour, skill_df[metric], 
+                       label=metric, alpha=0.7)
         
         ax.set_xlabel('Forecast Hour')
-        ax.set_ylabel(title)
+        ax.set_ylabel('Score')
+        ax.set_title(group_name)
         ax.grid(True)
+        ax.legend()
     
-    axes[0].legend(bbox_to_anchor=(1.05, 1), loc='upper left')
     plt.tight_layout()
     return fig
 
@@ -108,7 +116,11 @@ def main():
         
         print("\nResults saved to forecast_skill.png")
         print("\nSkill metrics summary:")
-        print(skill_df.groupby('fcst_hour')[['bias', 'rmse', 'correlation']].mean())
+        
+        # Print summary statistics for key metrics
+        key_metrics = ['bias', 'rmse', 'correlation', 'acc', 'pod', 'far', 'csi', 'hss']
+        summary = skill_df.groupby('fcst_hour')[key_metrics].mean()
+        print(summary.round(4))
         
     except Exception as e:
         print(f"\nError: {str(e)}")
