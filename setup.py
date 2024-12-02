@@ -10,7 +10,7 @@ setup(
     long_description_content_type="text/markdown",
     author="Al-Ekram Elahee Hridoy",
     author_email="alekram.elahee@gmail.com",
-    url="https://github.com/alhridoy/wea-extream",
+    url="https://github.com/alhridoy/weatherbench2",
     packages=find_packages(),
     install_requires=[
         "numpy>=1.20.0",
@@ -40,7 +40,7 @@ setup(
     ],
     keywords="weather climate extreme-events machine-learning forecasting",
     project_urls={
-        "Bug Reports": "https://github.com/alhridoy/wea-extream/issues",
-        "Source": "https://github.com/alhridoy/wea-extream",
+        "Bug Reports": "https://github.com/alhridoy/weatherbench2/issues",
+        "Source": "https://github.com/alhridoy/weatherbench2",
     },
 )
