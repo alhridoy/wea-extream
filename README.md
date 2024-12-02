@@ -28,8 +28,8 @@ pip install -e .
 pip install wx-extreme
 
 # Install from source
-git clone https://github.com/alhridoy/weatherbench2.git
-cd weatherbench2
+git clone https://github.com/alhridoy/wea-extream.git
+cd wea-extream
 pip install -e .
 ```
 
@@ -265,7 +265,7 @@ The plot shows:
 Each line represents a different forecast initialization time, showing how forecast skill evolves with lead time.
 
 ### Comprehensive Metrics
-![Comprehensive Metrics](plots/comprehensive_metrics.png)
+![Comprehensive Metrics](plots/com_forecast_skill.png)
 
 The comprehensive evaluation includes:
 1. Basic Error Metrics:
