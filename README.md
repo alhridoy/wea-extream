@@ -255,7 +255,7 @@ summary.to_csv('regional_validation.csv')
 ## Validation Results
 
 ### Forecast Skill
-![Forecast Skill](plots/forecast_skill.png)
+![Forecast Skill](plots/com_forecast_skill.png)
 
 The plot shows:
 - Top: Temperature bias (°C)
@@ -265,7 +265,7 @@ The plot shows:
 Each line represents a different forecast initialization time, showing how forecast skill evolves with lead time.
 
 ### Comprehensive Metrics
-![Comprehensive Metrics](plots/com_forecast_skill.png)
+![Comprehensive Metrics](plots/comprehensive_metrics.png)
 
 The comprehensive evaluation includes:
 1. Basic Error Metrics:
