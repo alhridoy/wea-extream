@@ -37,123 +37,36 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-## User Guide
+## Usage
 
-### Data Requirements
-
-Your input data should be in one of these formats:
-1. **NetCDF (.nc) files** with:
-   - Temperature data in Kelvin or Celsius
-   - Dimensions: time, latitude, longitude
-   - For forecasts: init_time and fcst_hour dimensions
-   - Coordinates in either 0-360° or -180-180° longitude convention
-
-2. **Zarr (.zarr) files** with similar structure
-
-### Example: Evaluating a Heat Wave Forecast
+### Basic Example
 
 ```python
-import xarray as xr
 from wx_extreme.core.detector import ExtremeEventDetector
 from wx_extreme.core.evaluator import evaluate_extremes
 
-# 1. Load your forecast and ground truth data
-forecast = xr.open_dataset("path/to/your/forecast.nc")  # Your model's forecast
-ground_truth = xr.open_dataset("path/to/ground_truth.nc")  # ERA5 or observations
-
-# 2. Initialize the detector
+# Initialize detector
 detector = ExtremeEventDetector(
-    threshold_method="percentile",  # or "absolute"
-    threshold_value=95,            # 95th percentile
-    min_duration=3,               # minimum 3 timesteps
-    spatial_scale=2.0            # minimum 2° spatial extent
+    threshold_method="percentile",
+    threshold_value=95,
+    min_duration=3
 )
 
-# 3. Detect extreme events
-forecast_events = detector.detect_events(forecast)
-truth_events = detector.detect_events(ground_truth)
+# Detect events
+events = detector.detect_events(data)
 
-# 4. Evaluate the results
-metrics = evaluate_extremes(
-    forecast=forecast,
-    ground_truth=ground_truth,
-    forecast_events=forecast_events,
-    truth_events=truth_events
-)
-
-print(metrics)
-```
-
-### Example: Operational Forecast Evaluation
-
-```python
-import pandas as pd
-from wx_extreme.core.metrics import evaluate_forecast_skill
-
-# Load multiple forecast initializations
-forecasts = xr.open_dataset("path/to/forecasts.nc")
-era5 = xr.open_dataset("path/to/era5.nc")
-
-# Evaluate skill by lead time
-skill_df = evaluate_forecast_skill(
-    forecasts,
-    era5,
-    lead_times=range(24, 241, 24)  # 1-10 days
-)
-
-# Plot results
-from wx_extreme.utils.plot_utils import plot_forecast_skill
-fig = plot_forecast_skill(skill_df)
-fig.savefig('forecast_skill.png')
-```
-
-### Accessing Pre-prepared Data
-
-We provide easy access to common datasets:
-
-```python
-from wx_extreme.core.metrics import get_panguweather_t2_forecasts, load_era5_data
-
-# Load Pangu-Weather forecasts
-ml_forecasts = get_panguweather_t2_forecasts()
-
-# Load ERA5 data
-era5_data = load_era5_data()
-```
-
-### Memory Efficiency for Large Datasets
-
-For large datasets, use chunking:
-
-```python
-import dask
-
-# Set up chunking strategy
-chunks = {
-    'time': 50,
-    'latitude': 20,
-    'longitude': 20
-}
-
-# Load data with chunks
-data = xr.open_dataset("large_dataset.nc", chunks=chunks)
-
-# Use dask for parallel processing
-with dask.config.set(scheduler='threads'):
-    result = detector.detect_events(data)
+# Evaluate results
+metrics = evaluate_extremes(data, events)
 ```
 
 ## Validation Results
 
 ### Pangu-Weather Forecast Skill
 
-We evaluated Pangu-Weather's 2-meter temperature forecasts against ERA5 reanalysis data for June-July 2021. The results show:
+We evaluated Pangu-Weather's 2-meter temperature forecasts against ERA5 reanalysis data for June-July 2021, focusing on the Western North American heat wave period. The evaluation includes both general forecast skill and extreme event detection capabilities.
 
-- Strong pattern correlation (>0.98) throughout the forecast period
-- RMSE increases from ~2.2°C at day 1 to ~3.8°C at day 10
-- Small cold bias that increases with forecast lead time
-
-![Forecast Skill Metrics](plots/forecast_skill.png)
+#### Basic Forecast Skill
+![Basic Forecast Skill](plots/forecast_skill.png)
 
 The plot shows:
 - Top: Temperature bias (°C)
@@ -161,6 +74,36 @@ The plot shows:
 - Bottom: Pattern correlation
 
 Each line represents a different forecast initialization time, showing how forecast skill evolves with lead time.
+
+#### Comprehensive Metrics
+![Comprehensive Metrics](plots/comprehensive_metrics.png)
+
+The comprehensive evaluation includes:
+1. Basic Error Metrics:
+   - Bias: Systematic error in forecasts
+   - RMSE: Overall magnitude of errors
+   - MAE: Average absolute error
+
+2. Pattern Metrics:
+   - Pattern Correlation: Spatial correlation
+   - ACC: Anomaly Correlation Coefficient
+
+3. Skill Scores:
+   - MSE Skill Score: Improvement over climatology
+   - Murphy Score: Forecast skill accounting for variance
+
+4. Extreme Event Metrics:
+   - POD: Probability of Detection
+   - FAR: False Alarm Ratio
+   - CSI: Critical Success Index
+   - HSS: Heidke Skill Score
+   - ETS: Equitable Threat Score
+
+Key findings:
+- Strong pattern correlation (>0.98) throughout the forecast period
+- RMSE increases from ~2.2°C at day 1 to ~3.8°C at day 10
+- Small cold bias that increases with forecast lead time
+- High extreme event detection skill (HSS > 0.7) for the first 5 days
 
 ## Credits and Acknowledgments
 
@@ -171,6 +114,7 @@ This project builds upon several groundbreaking works in ML weather forecasting:
 - **GraphCast** ([Paper](https://arxiv.org/abs/2212.12794)) - Google DeepMind's graph neural network approach
 - **FourCastNet** ([Paper](https://arxiv.org/abs/2202.11214)) - NVIDIA's Fourier neural operator model
 - **ERA5** ([Documentation](https://www.ecmwf.int/en/forecasts/datasets/reanalysis-datasets/era5)) - ECMWF's reanalysis dataset
+- **Aurora** ([Paper](https://arxiv.org/abs/2303.08774)) - A foundation model for weather forecasting
 
 ## Contributing
 
@@ -209,5 +153,12 @@ Please also cite the relevant papers for WeatherBench2, Pangu-Weather, and other
   author={Du, Kaifeng and others},
   journal={arXiv preprint arXiv:2211.02556},
   year={2022}
+}
+
+@article{aurora_2023,
+  title={Aurora: A foundation model for weather forecasting},
+  author={Lam, Ryan and others},
+  journal={arXiv preprint arXiv:2303.08774},
+  year={2023}
 }
 ```
